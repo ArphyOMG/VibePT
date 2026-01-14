@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 헬스장 앱의 부드러운 스크롤을 위한 추가 설정 */
+html {
+  scroll-behavior: smooth;
+  background-color: black;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
