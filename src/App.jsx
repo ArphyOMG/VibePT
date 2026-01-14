@@ -28,6 +28,8 @@ import {
   Info
 } from 'lucide-react';
 
+
+
 // --- 초기 데이터 (AI가 생성할 기본 루틴 템플릿) ---
 const INITIAL_ROUTINE = [
   { id: 'v1', name: 'NewTech Torture Chest Press', vendor: 'NewTech', setup: '의자 3단계 / 핀 2번', weight: '40', reps: '12', sets: 4, tip: '어제 어깨 운동을 고려해 팔꿈치를 살짝 낮게 유지하세요.' },
@@ -477,6 +479,15 @@ const nextSet = async () => {
           completedAt: serverTimestamp(),
         }
       );
+
+      console.log("[set] saved:", {
+        workoutId: activeWorkoutId,
+        stepIndex: currentStep,
+        setIndex: currentSet,
+        exerciseId: exercise.id,
+      });
+
+      
     } catch (e) {
       console.error("Save set failed:", e);
     }
