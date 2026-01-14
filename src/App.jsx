@@ -445,19 +445,6 @@ const startSpecificRoutine = (routineData) => {
   setCurrentSet(1);
 };
 
-
-    // 5) 이후 세트 로그 저장을 위해 workoutId 보관
-    setActiveWorkoutId(workoutRef.id);
-
-    // 6) 세트 진행 초기화
-    setCurrentStep(0);
-    setCurrentSet(1);
-  } catch (e) {
-    console.error("Create workout failed:", e);
-  }
-};
-
-
 const nextSet = async () => {
   const exercise = routine[currentStep];
 
