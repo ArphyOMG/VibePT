@@ -206,6 +206,43 @@ const SummaryView = ({ resetApp }) => (
     </button>
   </div>
 );
+/**
+ * 화면 3: 내 정보 뷰 (Profile)
+ */
+  const ProfileView = () => (
+  <div className="flex flex-col h-full bg-black text-white p-6 pt-16 text-left">
+    <div className="flex items-center gap-4 mb-8">
+      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center border-2 border-yellow-400 shadow-lg shadow-yellow-400/10">
+        <User size={32} className="text-yellow-400" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold">Vibe Challenger</h2>
+        <p className="text-xs text-zinc-500">바이브 PT 프리미엄 멤버 | 24회차 완료</p>
+      </div>
+    </div>
+    
+    <div className="grid grid-cols-2 gap-3 mb-8">
+      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+        <span className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold tracking-tight text-left">이번 주 운동</span>
+        <span className="text-lg font-bold">4회 완료</span>
+      </div>
+      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+        <span className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold tracking-tight text-left">총 활동 에너지</span>
+        <span className="text-lg font-bold text-yellow-400">12,400 kcal</span>
+      </div>
+    </div>
+
+    <h3 className="text-xs font-bold text-zinc-500 mb-4 uppercase tracking-widest text-left">설정 및 관리</h3>
+    <div className="space-y-2">
+      {['운동 이력 데이터 분석', '지점별 기구 리스트', 'AI 목소리 및 테마 설정', '로그아웃'].map((item, i) => (
+        <div key={i} className="bg-zinc-900/50 p-4 rounded-xl flex justify-between items-center border border-zinc-800/50 cursor-pointer hover:bg-zinc-800 transition-colors">
+          <span className="text-sm">{item}</span>
+          <ChevronRight size={16} className="text-zinc-700" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 /**
  * Main App Component
