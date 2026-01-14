@@ -1,3 +1,14 @@
+import { auth, db } from "./firebase";
+import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+  collection,
+  addDoc,
+  updateDoc,
+} from "firebase/firestore";
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, 
@@ -320,6 +331,44 @@ const App = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
   const scrollRef = useRef(null);
+  
+  /*App 컴포넌트 내부 state 추가*/
+  const [uid, setUid] = useState(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [activeWorkoutId, setActiveWorkoutId] = useState(null);
+  const savingSetRef = useRef(false);
+
+  /*익명 로그인 useEffect 추가*/
+  useEffect(() => {
+  const unsub = onAuthStateChanged(auth, async (user) => {
+    try {
+      if (!user) {
+        const cred = await signInAnonymously(auth);
+        user = cred.user;
+      }
+
+      setUid(user.uid);
+
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          createdAt: serverTimestamp(),
+          lastActiveAt: serverTimestamp(),
+          isAnonymous: user.isAnonymous ?? true,
+          providers: (user.providerData || []).map((p) => p.providerId),
+        },
+        { merge: true }
+      );
+
+      setIsAuthReady(true);
+    } catch (e) {
+      console.error("Auth init failed:", e);
+      setIsAuthReady(true);
+    }
+  });
+
+  return () => unsub();
+}, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -346,24 +395,79 @@ const App = () => {
     }, 800);
   };
 
-  // 특정 답변에 포함된 루틴으로 운동 시작
-  const startSpecificRoutine = (data) => {
-    setRoutine(data);
-    setView('routine');
-    setActiveTab('guide');
-  };
+const startSpecificRoutine = async (routineData) => {
+  // 1) 선택한 루틴을 앱 상태로 확정
+  setRoutine(routineData);
 
-  const nextSet = () => {
-    const exercise = routine[currentStep];
-    if (currentSet < exercise.sets) {
-      setCurrentSet(prev => prev + 1);
-    } else if (currentStep < routine.length - 1) {
-      setCurrentStep(prev => prev + 1);
-      setCurrentSet(1);
-    } else {
-      setView('summary');
+  // 2) UI 전환
+  setView("routine");      // 루틴 확정 화면이 있다면
+  setActiveTab("guide");
+
+  // 3) Firebase 준비 전이면 UI만 전환하고 종료
+  if (!isAuthReady || !uid) return;
+
+  try {
+    // 4) workout 세션 생성
+    const workoutRef = await addDoc(
+      collection(db, "users", uid, "workouts"),
+      {
+        startedAt: serverTimestamp(),
+        endedAt: null,
+        status: "in_progress",
+        source: "ai_recommendation",
+        routineSnapshot: routineData,
+      }
+    );
+
+    // 5) 이후 세트 로그 저장을 위해 workoutId 보관
+    setActiveWorkoutId(workoutRef.id);
+
+    // 6) 세트 진행 초기화
+    setCurrentStep(0);
+    setCurrentSet(1);
+  } catch (e) {
+    console.error("Create workout failed:", e);
+  }
+};
+
+
+const nextSet = async () => {
+  const exercise = routine[currentStep];
+
+  // 0) workout이 없으면 저장 스킵 (안전 가드)
+  if (!activeWorkoutId || !uid) {
+    console.warn("No active workout, skip saving set");
+  } else {
+    try {
+      // 1) 방금 완료한 세트 로그 저장
+      await addDoc(
+        collection(db, "users", uid, "workouts", activeWorkoutId, "sets"),
+        {
+          exerciseId: exercise.id,
+          exerciseName: exercise.name,
+          stepIndex: currentStep,
+          setIndex: currentSet,
+          weight: Number(exercise.weight),
+          reps: Number(exercise.reps),
+          completedAt: serverTimestamp(),
+        }
+      );
+    } catch (e) {
+      console.error("Save set failed:", e);
     }
-  };
+  }
+
+  // 2) 기존 UI 진행 로직 (그대로 유지)
+  if (currentSet < exercise.sets) {
+    setCurrentSet(prev => prev + 1);
+  } else if (currentStep < routine.length - 1) {
+    setCurrentStep(prev => prev + 1);
+    setCurrentSet(1);
+  } else {
+    setView("summary");
+  }
+};
+
 
   return (
     <div className="w-full max-w-md mx-auto h-[800px] border-[10px] border-zinc-800 rounded-[3.5rem] overflow-hidden shadow-2xl bg-black relative">
