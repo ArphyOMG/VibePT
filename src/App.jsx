@@ -135,7 +135,7 @@ const ChatView = ({ messages, inputValue, setInputValue, handleSendMessage, setV
 /**
  * 화면 1.5: 추천 운동 목록 뷰 (RoutineView)
  */
-const RoutineView = ({ routine, setView }) => (
+const RoutineView = ({ routine, onStart }) => (
   <div className="flex flex-col h-full bg-black text-white p-6 pt-16 text-left">
     <div className="flex items-center gap-3 mb-6">
       <ListFilter className="text-yellow-400" size={24} />
@@ -159,7 +159,7 @@ const RoutineView = ({ routine, setView }) => (
 
     <div className="absolute bottom-24 left-0 right-0 px-6">
       <button 
-        onClick={() => setView('guide')}
+        onClick={onStart}
         className="w-full bg-yellow-400 text-black font-black py-5 rounded-2xl text-lg shadow-xl shadow-yellow-400/10 active:scale-95 transition-transform"
       >
         트레이닝 시작
@@ -171,7 +171,7 @@ const RoutineView = ({ routine, setView }) => (
 /**
  * 화면 2: 운동 가이드 뷰
  */
-const GuideView = ({ routine, currentStep, currentSet, updateRoutineDetail, nextSet }) => {
+const GuideView = ({ routine, currentStep, currentSet, updateRoutineDetail, nextSet, activeWorkoutId }) => {
   const ex = routine[currentStep];
   const progress = ((currentStep + 1) / routine.length) * 100;
 
@@ -238,12 +238,16 @@ const GuideView = ({ routine, currentStep, currentSet, updateRoutineDetail, next
         <div className="flex items-center gap-2 mb-4 text-xl font-mono font-bold text-white w-full justify-center">
           <Timer size={20} className="text-yellow-400" /> 01:24
         </div>
-        <button 
+        <button
           onClick={nextSet}
-          className="w-full bg-yellow-400 text-black font-black py-5 rounded-2xl text-lg shadow-xl shadow-yellow-400/10 active:scale-95 transition-transform"
+          disabled={!activeWorkoutId}
+          className={`w-full font-black py-5 rounded-2xl text-lg shadow-xl shadow-yellow-400/10 active:scale-95 transition-transform
+            ${!activeWorkoutId ? "bg-zinc-700 text-zinc-300 cursor-not-allowed" : "bg-yellow-400 text-black"}
+          `}
         >
           SET COMPLETE
         </button>
+
       </footer>
     </div>
   );
@@ -337,6 +341,39 @@ const App = () => {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeWorkoutId, setActiveWorkoutId] = useState(null);
   const savingSetRef = useRef(false);
+  const ensureActiveWorkout = async (routineData = routine) => {
+      // 이미 세션이 있으면 그대로 사용
+      if (activeWorkoutId) return activeWorkoutId;
+    
+      // auth 준비 전이면 생성 불가
+      if (!isAuthReady || !uid) {
+        console.warn("Auth not ready yet");
+        return null;
+      }
+    
+      try {
+        const workoutRef = await addDoc(
+          collection(db, "users", uid, "workouts"),
+          {
+            startedAt: serverTimestamp(),
+            endedAt: null,
+            status: "in_progress",
+            source: "ai_recommendation",
+            routineSnapshot: routineData,
+          }
+        );
+    
+        setActiveWorkoutId(workoutRef.id);
+        setCurrentStep(0);
+        setCurrentSet(1);
+    
+        console.log("[workout] created:", workoutRef.id);
+        return workoutRef.id;
+      } catch (e) {
+        console.error("Create workout failed:", e);
+        return null;
+      }
+    };
 
   /*익명 로그인 useEffect 추가*/
   useEffect(() => {
@@ -395,29 +432,17 @@ const App = () => {
     }, 800);
   };
 
-const startSpecificRoutine = async (routineData) => {
-  // 1) 선택한 루틴을 앱 상태로 확정
+const startSpecificRoutine = (routineData) => {
   setRoutine(routineData);
-
-  // 2) UI 전환
-  setView("routine");      // 루틴 확정 화면이 있다면
+  setView("routine");
   setActiveTab("guide");
 
-  // 3) Firebase 준비 전이면 UI만 전환하고 종료
-  if (!isAuthReady || !uid) return;
+  // 세션 초기화(이전 운동이 남아있을 수 있으니)
+  setActiveWorkoutId(null);
+  setCurrentStep(0);
+  setCurrentSet(1);
+};
 
-  try {
-    // 4) workout 세션 생성
-    const workoutRef = await addDoc(
-      collection(db, "users", uid, "workouts"),
-      {
-        startedAt: serverTimestamp(),
-        endedAt: null,
-        status: "in_progress",
-        source: "ai_recommendation",
-        routineSnapshot: routineData,
-      }
-    );
 
     // 5) 이후 세트 로그 저장을 위해 workoutId 보관
     setActiveWorkoutId(workoutRef.id);
@@ -489,7 +514,15 @@ const nextSet = async () => {
           />
         )}
         {activeTab === 'guide' && view === 'routine' && (
-          <RoutineView routine={routine} setView={setView} />
+          <RoutineView
+            routine={routine}
+            onStart={async () => {
+              const id = await ensureActiveWorkout(routine);
+              if (!id) return;     // auth 준비 전/생성 실패면 막기
+              setView("guide");
+            }}
+          />
+
         )}
         {activeTab === 'guide' && view === 'guide' && (
           <GuideView 
@@ -498,6 +531,7 @@ const nextSet = async () => {
             currentSet={currentSet}
             updateRoutineDetail={updateRoutineDetail}
             nextSet={nextSet}
+            activeWorkoutId={activeWorkoutId}
           />
         )}
         {activeTab === 'profile' && <ProfileView />}
